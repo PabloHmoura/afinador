@@ -1,208 +1,283 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Afinador Responsivo</title>
 <style>
+  :root {
+    --bg: #0b1320;
+    --panel: #121b2e;
+    --accent: #F9B233;
+    --green: #22c55e;
+    --muted: #a0aec0;
+  }
+
+  * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
   body {
-    font-family: Arial, sans-serif;
-    background: #1a1a1a;
-    color: white;
-    text-align: center;
+    margin: 0; background: var(--bg); color: white; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     padding: 20px;
   }
 
   h1 {
-    margin-bottom: 30px;
+    font-size: 1.5rem; margin: 10px 0;
+    text-align: center;
   }
 
-  #note {
-    font-size: 60px;
-    font-weight: bold;
-    margin: 20px 0;
+  .container {
+    width: 100%;
+    max-width: 600px;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   }
 
-  #frequency {
-    font-size: 24px;
-    margin: 10px 0;
-  }
-
-  #status {
-    font-size: 18px;
-    color: #ffcc00;
-  }
-
-  .in-tune {
-    color: #00ff00;
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
   }
 
   button {
-    background-color: #333;
-    color: white;
-    border: none;
-    padding: 12px 20px;
-    font-size: 16px;
-    border-radius: 8px;
-    cursor: pointer;
-    margin-top: 30px;
+    border: none; border-radius: 8px; padding: 10px 16px; font-weight: bold;
+    cursor: pointer; font-size: 1rem; transition: background 0.3s;
   }
 
-  button:hover {
-    background-color: #555;
+  #startBtn { background: var(--accent); color: #111; }
+  #startBtn:hover { background: #ffd25e; }
+  #stopBtn { background: #444; color: white; }
+  #stopBtn:hover { background: #555; }
+
+  .display {
+    text-align: center;
   }
 
-  @media (max-width: 600px) {
-    #note {
-      font-size: 48px;
-    }
-    #frequency {
-      font-size: 20px;
-    }
-    button {
-      font-size: 18px;
-      padding: 15px 25px;
-    }
+  .freq {
+    font-size: 2rem; margin-bottom: 4px;
+  }
+
+  .note {
+    font-size: 2.5rem; font-weight: bold;
+    color: var(--accent);
+    transition: color 0.2s;
+  }
+
+  .cents {
+    font-size: 1rem; color: var(--muted);
+  }
+
+  .gauge {
+    position: relative;
+    height: 140px; margin-top: 20px;
+  }
+
+  .needle {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    width: 4px; height: 70px;
+    background: var(--accent);
+    border-radius: 2px;
+    transform-origin: bottom center;
+    transform: translateX(-50%) rotate(0deg);
+    transition: background 0.2s;
+  }
+
+  .center-dot {
+    position: absolute;
+    bottom: 8px; left: 50%;
+    width: 12px; height: 12px;
+    background: #111; border-radius: 50%;
+    border: 3px solid var(--accent);
+    transform: translateX(-50%);
+  }
+
+  .bar {
+    height: 10px; background: #222; margin-top: 16px;
+    border-radius: 10px; overflow: hidden; position: relative;
+  }
+
+  .bar-fill {
+    position: absolute; left: 50%; top: 0;
+    height: 100%; width: 3px;
+    background: var(--accent);
+    transform: translateX(-50%);
+    transition: background 0.2s;
+  }
+
+  .status {
+    text-align: center; font-size: 0.9rem; color: var(--muted);
+    margin-top: 10px;
+  }
+
+  @media (max-width: 480px) {
+    h1 { font-size: 1.2rem; }
+    .note { font-size: 2rem; }
+    .freq { font-size: 1.4rem; }
   }
 </style>
 </head>
 <body>
-  <h1>Afinador Online 🎵</h1>
-  <div id="note">--</div>
-  <div id="frequency">0 Hz</div>
-  <div id="status">Aguardando microfone...</div>
-  <button id="startBtn">Ativar microfone</button>
+  <h1>Afinador Cromático</h1>
+
+  <div class="container">
+    <div class="controls">
+      <button id="startBtn">🎤 Iniciar</button>
+      <button id="stopBtn" disabled>⏹ Parar</button>
+    </div>
+
+    <div class="display">
+      <div class="freq" id="freq">— Hz</div>
+      <div class="note" id="note">—</div>
+      <div class="cents" id="cents">— cents</div>
+    </div>
+
+    <div class="gauge">
+      <div class="needle" id="needle"></div>
+      <div class="center-dot"></div>
+    </div>
+
+    <div class="bar">
+      <div class="bar-fill" id="barFill"></div>
+    </div>
+
+    <div class="status" id="status">Pronto</div>
+  </div>
 
 <script>
-const noteElem = document.getElementById("note");
-const freqElem = document.getElementById("frequency");
-const statusElem = document.getElementById("status");
-const startBtn = document.getElementById("startBtn");
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const freqEl = document.getElementById('freq');
+const noteEl = document.getElementById('note');
+const centsEl = document.getElementById('cents');
+const statusEl = document.getElementById('status');
+const needle = document.getElementById('needle');
+const barFill = document.getElementById('barFill');
 
-function isMobile() {
-  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+let audioCtx, analyser, source, micStream, rafId;
+let bufLen = 2048;
+
+const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function autoCorrelate(buf, sampleRate) {
+  let SIZE = buf.length;
+  let rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buf[i]*buf[i];
+  rms = Math.sqrt(rms/SIZE);
+  if (rms < 0.01) return -1;
+
+  let r1 = 0, r2 = SIZE-1, th = 0.2;
+  for (let i = 0; i < SIZE/2; i++) { if (Math.abs(buf[i]) < th) { r1 = i; break; } }
+  for (let i = 1; i < SIZE/2; i++) { if (Math.abs(buf[SIZE-i]) < th) { r2 = SIZE - i; break; } }
+  buf = buf.slice(r1, r2);
+  SIZE = buf.length;
+
+  let c = new Array(SIZE).fill(0);
+  for (let i = 0; i < SIZE; i++) for (let j = 0; j < SIZE-i; j++) c[i] += buf[j]*buf[j+i];
+  let d = 0; while (c[d] > c[d+1]) d++;
+  let max = -1, pos = -1;
+  for (let i = d; i < SIZE; i++) if (c[i] > max){ max = c[i]; pos = i; }
+  if (pos === 0) return -1;
+  const freq = sampleRate / pos;
+  return (freq < 50 || freq > 2000) ? -1 : freq;
 }
 
-startBtn.addEventListener("click", async () => {
-  try {
-    // 🔊 Solicitar acesso ao microfone
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    statusElem.textContent = "Microfone ativado! Afinando...";
-    analyzePitch(stream);
-  } catch (err) {
-    statusElem.textContent = "Permita o acesso ao microfone.";
-    console.error(err);
-  }
-});
-
-// 🎵 Função para analisar a frequência do áudio
-function analyzePitch(stream) {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  const analyser = audioContext.createAnalyser();
-  const source = audioContext.createMediaStreamSource(stream);
-  const buffer = new Float32Array(analyser.fftSize);
-  source.connect(analyser);
-
-  function detectPitch() {
-    analyser.getFloatTimeDomainData(buffer);
-    const frequency = autoCorrelate(buffer, audioContext.sampleRate);
-
-    if (frequency !== -1) {
-      freqElem.textContent = frequency.toFixed(1) + " Hz";
-      const note = getNoteFromFrequency(frequency);
-      noteElem.textContent = note.name;
-
-      const diff = frequency - note.frequency;
-      if (Math.abs(diff) < 2) {
-        statusElem.textContent = "Afinado!";
-        statusElem.classList.add("in-tune");
-      } else {
-        statusElem.textContent = diff > 0 ? "Afrouxe um pouco" : "Aperte um pouco";
-        statusElem.classList.remove("in-tune");
-      }
-    }
-
-    requestAnimationFrame(detectPitch);
-  }
-
-  detectPitch();
+function freqToNote(freq) {
+  const A4 = 440;
+  const noteNum = 12 * (Math.log2(freq / A4)) + 69;
+  return noteNum;
 }
 
-// 🔍 Função de autocorrelação simples
-function autoCorrelate(buffer, sampleRate) {
-  let SIZE = buffer.length;
-  let sumOfSquares = 0;
-  for (let i = 0; i < SIZE; i++) {
-    let val = buffer[i];
-    sumOfSquares += val * val;
-  }
-  let rootMeanSquare = Math.sqrt(sumOfSquares / SIZE);
-  if (rootMeanSquare < 0.01) return -1;
-
-  let r1 = 0, r2 = SIZE - 1, threshold = 0.2;
-  for (let i = 0; i < SIZE / 2; i++) {
-    if (Math.abs(buffer[i]) < threshold) { r1 = i; break; }
-  }
-  for (let i = 1; i < SIZE / 2; i++) {
-    if (Math.abs(buffer[SIZE - i]) < threshold) { r2 = SIZE - i; break; }
-  }
-
-  buffer = buffer.slice(r1, r2);
-  SIZE = buffer.length;
-
-  let correlations = new Array(SIZE).fill(0);
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE - i; j++) {
-      correlations[i] += buffer[j] * buffer[j + i];
-    }
-  }
-
-  let d = 0; while (correlations[d] > correlations[d + 1]) d++;
-  let maxval = -1, maxpos = -1;
-  for (let i = d; i < SIZE; i++) {
-    if (correlations[i] > maxval) {
-      maxval = correlations[i];
-      maxpos = i;
-    }
-  }
-
-  let T0 = maxpos;
-  return sampleRate / T0;
+function centsOff(freq, midi) {
+  const A4 = 440;
+  const refFreq = A4 * Math.pow(2, (midi - 69)/12);
+  return 1200 * Math.log2(freq / refFreq);
 }
 
-// 🎼 Mapear frequência para nota musical
-function getNoteFromFrequency(frequency) {
-  const notes = [
-    { name: "A", frequency: 440.0 },
-    { name: "A#", frequency: 466.16 },
-    { name: "B", frequency: 493.88 },
-    { name: "C", frequency: 523.25 },
-    { name: "C#", frequency: 554.37 },
-    { name: "D", frequency: 587.33 },
-    { name: "D#", frequency: 622.25 },
-    { name: "E", frequency: 659.25 },
-    { name: "F", frequency: 698.46 },
-    { name: "F#", frequency: 739.99 },
-    { name: "G", frequency: 783.99 },
-    { name: "G#", frequency: 830.61 }
-  ];
-
-  let closest = notes.reduce((prev, curr) => 
-    Math.abs(curr.frequency - frequency) < Math.abs(prev.frequency - frequency)
-      ? curr
-      : prev
-  );
-  return closest;
+function angleFromCents(cents) {
+  const limited = Math.max(-50, Math.min(50, cents));
+  return limited * 0.6; // -30° a +30°
 }
 
-// 🔎 Detectar se está em celular e avisar o usuário
-window.addEventListener("load", () => {
-  if (isMobile()) {
-    statusElem.textContent = "Toque em 'Ativar microfone' para começar (necessário liberar o microfone 📱)";
+function update() {
+  const buf = new Float32Array(bufLen);
+  analyser.getFloatTimeDomainData(buf);
+  const freq = autoCorrelate(buf, audioCtx.sampleRate);
+  if (freq === -1) {
+    freqEl.textContent = '— Hz';
+    noteEl.textContent = '—';
+    centsEl.textContent = '—';
+    statusEl.textContent = 'Sem sinal';
+    needle.style.transform = `translateX(-50%) rotate(0deg)`;
+    barFill.style.left = '50%';
+    barFill.style.background = 'var(--accent)';
+    needle.style.background = 'var(--accent)';
   } else {
-    statusElem.textContent = "Clique em 'Ativar microfone' (PC ou notebook)";
+    const midi = freqToNote(freq);
+    const rounded = Math.round(midi);
+    const noteName = noteNames[rounded % 12] + (Math.floor(rounded / 12) - 1);
+    const cents = centsOff(freq, rounded);
+
+    freqEl.textContent = freq.toFixed(1) + ' Hz';
+    noteEl.textContent = noteName;
+    centsEl.textContent = `${cents > 0 ? '+' : ''}${cents.toFixed(1)} cents`;
+
+    // move needle and bar
+    const angle = angleFromCents(cents);
+    needle.style.transform = `translateX(-50%) rotate(${angle}deg)`;
+    const pct = 50 + (cents / 100) * 100;
+    barFill.style.left = `${Math.max(0, Math.min(100, pct))}%`;
+
+    // afinado visual
+    if (Math.abs(cents) < 5) {
+      needle.style.background = 'var(--green)';
+      barFill.style.background = 'var(--green)';
+      noteEl.style.color = 'var(--green)';
+      statusEl.textContent = '✅ Afinado';
+    } else {
+      needle.style.background = 'var(--accent)';
+      barFill.style.background = 'var(--accent)';
+      noteEl.style.color = 'var(--accent)';
+      statusEl.textContent = 'Ajuste...';
+    }
   }
-});
+  rafId = requestAnimationFrame(update);
+}
+
+async function startTuner() {
+  try {
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    statusEl.textContent = 'Ativando microfone...';
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = bufLen * 2;
+    source = audioCtx.createMediaStreamSource(micStream);
+    source.connect(analyser);
+    update();
+    statusEl.textContent = 'Tocando...';
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'Erro: ' + err.message;
+    startBtn.disabled = false;
+  }
+}
+
+function stopTuner() {
+  cancelAnimationFrame(rafId);
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  if (audioCtx) audioCtx.close();
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  statusEl.textContent = 'Parado';
+}
+
+startBtn.addEventListener('click', startTuner);
+stopBtn.addEventListener('click', stopTuner);
 </script>
 </body>
 </html>
