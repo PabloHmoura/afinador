@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Afinador Responsivo</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #1a1a1a;
+    color: white;
+    text-align: center;
+    padding: 20px;
+  }
+
+  h1 {
+    margin-bottom: 30px;
+  }
+
+  #note {
+    font-size: 60px;
+    font-weight: bold;
+    margin: 20px 0;
+  }
+
+  #frequency {
+    font-size: 24px;
+    margin: 10px 0;
+  }
+
+  #status {
+    font-size: 18px;
+    color: #ffcc00;
+  }
+
+  .in-tune {
+    color: #00ff00;
+  }
+
+  button {
+    background-color: #333;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    font-size: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 30px;
+  }
+
+  button:hover {
+    background-color: #555;
+  }
+
+  @media (max-width: 600px) {
+    #note {
+      font-size: 48px;
+    }
+    #frequency {
+      font-size: 20px;
+    }
+    button {
+      font-size: 18px;
+      padding: 15px 25px;
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>Afinador Online 🎵</h1>
+  <div id="note">--</div>
+  <div id="frequency">0 Hz</div>
+  <div id="status">Aguardando microfone...</div>
+  <button id="startBtn">Ativar microfone</button>
+
+<script>
+const noteElem = document.getElementById("note");
+const freqElem = document.getElementById("frequency");
+const statusElem = document.getElementById("status");
+const startBtn = document.getElementById("startBtn");
+
+function isMobile() {
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+}
+
+startBtn.addEventListener("click", async () => {
+  try {
+    // 🔊 Solicitar acesso ao microfone
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    statusElem.textContent = "Microfone ativado! Afinando...";
+    analyzePitch(stream);
+  } catch (err) {
+    statusElem.textContent = "Permita o acesso ao microfone.";
+    console.error(err);
+  }
+});
+
+// 🎵 Função para analisar a frequência do áudio
+function analyzePitch(stream) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const analyser = audioContext.createAnalyser();
+  const source = audioContext.createMediaStreamSource(stream);
+  const buffer = new Float32Array(analyser.fftSize);
+  source.connect(analyser);
+
+  function detectPitch() {
+    analyser.getFloatTimeDomainData(buffer);
+    const frequency = autoCorrelate(buffer, audioContext.sampleRate);
+
+    if (frequency !== -1) {
+      freqElem.textContent = frequency.toFixed(1) + " Hz";
+      const note = getNoteFromFrequency(frequency);
+      noteElem.textContent = note.name;
+
+      const diff = frequency - note.frequency;
+      if (Math.abs(diff) < 2) {
+        statusElem.textContent = "Afinado!";
+        statusElem.classList.add("in-tune");
+      } else {
+        statusElem.textContent = diff > 0 ? "Afrouxe um pouco" : "Aperte um pouco";
+        statusElem.classList.remove("in-tune");
+      }
+    }
+
+    requestAnimationFrame(detectPitch);
+  }
+
+  detectPitch();
+}
+
+// 🔍 Função de autocorrelação simples
+function autoCorrelate(buffer, sampleRate) {
+  let SIZE = buffer.length;
+  let sumOfSquares = 0;
+  for (let i = 0; i < SIZE; i++) {
+    let val = buffer[i];
+    sumOfSquares += val * val;
+  }
+  let rootMeanSquare = Math.sqrt(sumOfSquares / SIZE);
+  if (rootMeanSquare < 0.01) return -1;
+
+  let r1 = 0, r2 = SIZE - 1, threshold = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) {
+    if (Math.abs(buffer[i]) < threshold) { r1 = i; break; }
+  }
+  for (let i = 1; i < SIZE / 2; i++) {
+    if (Math.abs(buffer[SIZE - i]) < threshold) { r2 = SIZE - i; break; }
+  }
+
+  buffer = buffer.slice(r1, r2);
+  SIZE = buffer.length;
+
+  let correlations = new Array(SIZE).fill(0);
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE - i; j++) {
+      correlations[i] += buffer[j] * buffer[j + i];
+    }
+  }
+
+  let d = 0; while (correlations[d] > correlations[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) {
+    if (correlations[i] > maxval) {
+      maxval = correlations[i];
+      maxpos = i;
+    }
+  }
+
+  let T0 = maxpos;
+  return sampleRate / T0;
+}
+
+// 🎼 Mapear frequência para nota musical
+function getNoteFromFrequency(frequency) {
+  const notes = [
+    { name: "A", frequency: 440.0 },
+    { name: "A#", frequency: 466.16 },
+    { name: "B", frequency: 493.88 },
+    { name: "C", frequency: 523.25 },
+    { name: "C#", frequency: 554.37 },
+    { name: "D", frequency: 587.33 },
+    { name: "D#", frequency: 622.25 },
+    { name: "E", frequency: 659.25 },
+    { name: "F", frequency: 698.46 },
+    { name: "F#", frequency: 739.99 },
+    { name: "G", frequency: 783.99 },
+    { name: "G#", frequency: 830.61 }
+  ];
+
+  let closest = notes.reduce((prev, curr) => 
+    Math.abs(curr.frequency - frequency) < Math.abs(prev.frequency - frequency)
+      ? curr
+      : prev
+  );
+  return closest;
+}
+
+// 🔎 Detectar se está em celular e avisar o usuário
+window.addEventListener("load", () => {
+  if (isMobile()) {
+    statusElem.textContent = "Toque em 'Ativar microfone' para começar (necessário liberar o microfone 📱)";
+  } else {
+    statusElem.textContent = "Clique em 'Ativar microfone' (PC ou notebook)";
+  }
+});
+</script>
+</body>
+</html>
